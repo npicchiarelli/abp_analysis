@@ -1,5 +1,5 @@
 using GLMakie, CairoMakie
-using GeometryBasics: Point2f, Circle, Point2f0, Polygon
+using GeometryBasics: Point2f, Circle, Polygon
 using CSV, DataFrames, Dates, Logging, Statistics
 include("geo_toolbox.jl")
 
@@ -35,7 +35,7 @@ function animation_from_file(pathf::String, L::Real, R::Real, timestep::Real, me
 
     fig = GLMakie.Figure(size = (resolution, resolution), figure_padding = (5,5,5,5), px_per_unit = 1)
     ax = GLMakie.Axis(fig[1,1], limits = (-L/2, L/2, -L/2, L/2), aspect = 1, xgridvisible = true, ygridvisible = true, yticklabelsvisible = false, xticklabelsvisible = false, yticksvisible = false, xticksvisible = false)
-    mrk = GLMakie.decompose(Point2f,Circle(Point2f0(0), 1.))
+    mrk = GLMakie.decompose(Point2f,Circle(Point2f(0), 1.))
     mrkdir = Polygon(Point2f[(0.6,0), (-0.4,0.4), (-0.4, -0.4)])
     if color_code_dir
         sc = GLMakie.scatter!(ax, xs, ys, marker = Polygon(mrk), color = θnorms, colormap = :phase, alpha = 0.5, markerspace = :data, markersize = R)
@@ -90,7 +90,7 @@ function animation_from_history(history, pathf, L::Float64, R::Float64, Np::Int,
 
     fig = GLMakie.Figure(size = (1080,1080))
     ax = GLMakie.Axis(fig[1,1], limits = (-L/2, L/2, -L/2, L/2), aspect = 1)
-    mrk = GLMakie.decompose(Point2f,Circle(Point2f0(0), 1))
+    mrk = GLMakie.decompose(Point2f,Circle(Point2f(0), 1))
     mrkdir = Polygon(Point2f[(0.6,0), (-0.4,0.4), (-0.4, -0.4)])
     if color_code_dir
         sc = GLMakie.scatter!(ax, xs, ys, marker = Polygon(mrk), color = θs, colormap = :cyclic_mygbm_30_95_c78_n256_s25, alpha = 0.5, markerspace = :data, markersize = R)
@@ -120,7 +120,7 @@ function animation_from_history(history, pathf, L::Float64, R::Float64, Np::Int,
 
 end
 
-function plot_one_timestep(df::DataFrame, R::Number, L::Number, timestep::Int; savepath = nothing, title= nothing)
+function plot_one_timestep(df::DataFrame, R::Number, L::Number, timestep::Int; savepath = nothing, title= nothing, display_plot = true)
     CairoMakie.activate!(inline=true)
 
     Np = maximum(df[!,:N])
@@ -140,12 +140,14 @@ function plot_one_timestep(df::DataFrame, R::Number, L::Number, timestep::Int; s
         ax = CairoMakie.Axis(fig[1,1], limits = (-L/2, L/2, -L/2, L/2), aspect = 1, xgridvisible = true, ygridvisible = true, yticklabelsvisible = false, xticklabelsvisible = false, yticksvisible = false, xticksvisible = false)
     end
 
-    mrk = CairoMakie.decompose(Point2f,Circle(Point2f0(0), 1))
+    mrk = CairoMakie.decompose(Point2f,Circle(Point2f(0), 1))
     sc = CairoMakie.scatter!(ax, xpos[:,timestep], ypos[:,timestep], marker = Polygon(mrk), color = θ[:,timestep], colormap = :cyclic_mygbm_30_95_c78_n256_s25, alpha = 0.5, markerspace = :data, markersize = R)
     mrkdir = Polygon(Point2f[(0.6,0), (-0.4,0.4), (-0.4, -0.4)])
     CairoMakie.scatter!(ax, xpos[:,timestep], ypos[:,timestep], marker = mrkdir, rotation = θ[:,timestep],  color = :black, markerspace = :data, markersize = 3.)
 
-    CairoMakie.display(fig)
+    if display_plot
+        CairoMakie.display(fig)
+    end
     if savepath !== nothing
         CairoMakie.save(savepath, fig)
     end
