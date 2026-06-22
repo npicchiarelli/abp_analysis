@@ -53,18 +53,17 @@ end
 Takes a position matrix and a range as arguments and returns the cluster size distribution using DBSCAN clustering algorithm.
 """
 function cluster_size_distribution(xy::Array{Float64,2}, intrange::Float64)
-    res = dbscan(xy', intrange, min_cluster_size = 2)
-    return res.counts
+    return dbscan(xy', intrange, min_cluster_size = 2).counts
 end 
 
-function periodic_clustering!(cluster_df)
+function periodic_clustering!(cluster_df, L, mindist_cluster)
     df_sx, df_sy = copy(cluster_df), copy(cluster_df)
     df_sx[!,:xpos] = df_sx.xpos .- L/2
     df_sy[!,:ypos] = df_sy.ypos .- L/2
 
     for d in [df_sx, df_sy]
         xy = [d.xpos d.ypos]
-        periodic_BC_array!(xy, L, R)
+        periodic_BC_array!(xy, L, size(xy, 1))
         d[!,:xpos] = xy[:,1]
         d[!,:ypos] = xy[:,2]
     end
