@@ -1,4 +1,12 @@
-using GLMakie, CairoMakie
+# GLMakie is only needed for the interactive `animation_*` helpers below and
+# requires a working OpenGL/X11 display. Loading it crashes on headless
+# machines, so import it lazily and don't fail if it's unavailable.
+using CairoMakie
+try
+    @eval using GLMakie
+catch err
+    @warn "GLMakie unavailable (headless?); interactive animation functions disabled" err
+end
 using GeometryBasics: Point2f, Circle, Polygon
 using CSV, DataFrames, Dates, Logging, Statistics
 include("geo_toolbox.jl")
