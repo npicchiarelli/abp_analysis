@@ -69,20 +69,27 @@ for sim_dir in readdir(path, join = true)
     v         = parse(Float64, read_setting(settings_file, "v"))
     push!(oc, offcenter)
 
-    df_list        = DataFrame[]
-    df_meanor_list = DataFrame[]
-    df_t_list      = DataFrame[]
-    df_nclust_list = DataFrame[]
+    # Collect valid run directories upfront to know count for pre-allocation
+    run_dirs = filter(readdir(sim_dir, join = true)) do r
+        isdir(r) && isfile(joinpath(r, "simulation_$(basename(r)).txt"))
+    end
+    n_runs = length(run_dirs)
 
-    # ── Inner loop over independent runs ──────────────────────────────────────
-    for run_dir in readdir(sim_dir, join = true)
-        isdir(run_dir) || continue
+    # Pre-allocated arrays allow thread-safe indexed writes (no push!)
+    df_list        = Vector{DataFrame}(undef, n_runs)
+    df_meanor_list = Vector{DataFrame}(undef, n_runs)
+    df_t_list      = Vector{DataFrame}(undef, n_runs)
+    df_nclust_list = Vector{DataFrame}(undef, n_runs)
+
+    # ── Inner loop over independent runs (threaded) ───────────────────────────
+    Threads.@threads for i in eachindex(run_dirs)
+        run_dir   = run_dirs[i]
         run_name  = basename(run_dir)
         data_file = joinpath(run_dir, "simulation_$(run_name).txt")
-        isfile(data_file) || continue
 
-        df = CSV.read(data_file, DataFrame, ntasks = 16)
-        push!(df_list, df)
+        # ntasks=1 avoids nested parallelism with the outer @threads
+        df = CSV.read(data_file, DataFrame, ntasks = 1)
+        df_list[i] = df
 
         # Assign DBSCAN cluster labels, then correct for periodic boundaries
         df_cl = transform(
@@ -113,9 +120,9 @@ for sim_dir in readdir(path, join = true)
         # Global polarization: mean over all particles
         df_t = combine(groupby(df, :Time), :orientation => mean_polarization => :polar)
 
-        push!(df_meanor_list, df_meanor)
-        push!(df_t_list, df_t)
-        push!(df_nclust_list, df_nclust)
+        df_meanor_list[i] = df_meanor
+        df_t_list[i]      = df_t
+        df_nclust_list[i] = df_nclust
     end
 
     # Snapshot of the last timestep of the first run
