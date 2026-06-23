@@ -31,6 +31,9 @@ nbins           = args["nbins"]
 mindist_cluster = args["mindist-cluster"]
 tlim            = args["tlim"]
 
+# Output directory for the generated figures (created if missing)
+mkpath(joinpath(path, "imgs"))
+
 # Parse a single key from a settings.jl file without executing it
 function read_setting(settings_file, key)
     for line in eachline(settings_file)
