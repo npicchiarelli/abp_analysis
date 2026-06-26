@@ -70,7 +70,15 @@ for (i_sim, sim_dir) in enumerate(sim_dirs_all)
     offcenter = parse(Float64, read_setting(settings_file, "offcenter"))
     δt        = parse(Float64, read_setting(settings_file, "δt"))
     v         = parse(Float64, read_setting(settings_file, "v"))
+    int_func   = read_setting(settings_file, "int_func")    # interaction potential
+    int_params = read_setting(settings_file, "int_params")  # e.g. (k, σ, ex) or (σ, ϵ)
+    pf         = Np*π*R^2 / L^2                              # packing fraction
     push!(oc, offcenter)
+
+    # Title shared by all of this simulation's figures (for panel assembly)
+    pot_label  = first(split(basename(sim_dir), "_pf="))
+    plot_title = @sprintf("%s  |  pf=%.2f  |  offcenter=%.2f\n%s %s  |  v=%.0f μm/s",
+        pot_label, pf, offcenter, int_func, int_params, v)
 
     @info @sprintf("[%d/%d] %s  |  oc=%.6f  v=%.6f  Np=%d  L=%.4f",
         i_sim, n_sims, basename(sim_dir), offcenter, v, Np, L)
@@ -139,6 +147,7 @@ for (i_sim, sim_dir) in enumerate(sim_dirs_all)
     plot_one_timestep(
         df_list[1], R, L, Int(size(df_list[1], 1) / Np),
         savepath = joinpath(path, "imgs", "situa_$(basename(sim_dir)).png"),
+        title = plot_title,
         display_plot = false)
 
     # Average observables across runs
@@ -174,6 +183,7 @@ for (i_sim, sim_dir) in enumerate(sim_dirs_all)
     p2 = Figure(fontsize = 20)
     ax = Axis(p2[1,1],
         limits = ((0, tlim), nothing),
+        title = plot_title,
         xlabel = "Time [s]", ylabel = "Polarization",
         xgridvisible = false, ygridvisible = false)
     lines!(ax, df_meanor.Time*δt, df_meanor.mean_polar, linewidth = 1., color = :blue,  label = "local")
@@ -191,6 +201,7 @@ for (i_sim, sim_dir) in enumerate(sim_dirs_all)
 
     # ── Plot: cluster size and count vs time ──────────────────────────────────
     p3  = Figure(fontsize = 20)
+    Label(p3[0, 1], plot_title, fontsize = 20, font = :bold, tellwidth = false)
     ax1 = Axis(p3[1,1],
         limits = ((0, tlim), nothing),
         xlabel = "Time [s]", ylabel = "Max cluster size",
@@ -223,6 +234,7 @@ for (i_sim, sim_dir) in enumerate(sim_dirs_all)
 
     p4 = Figure(fontsize = 20)
     ax = Axis(p4[1,1],
+        title = plot_title,
         xlabel = "Distance [μm]", ylabel = "Radial Distribution Function",
         xgridvisible = false, ygridvisible = false)
     lines!(ax, rs, rdf.RadialDistributionFunction[end], linewidth = 2.)
