@@ -1,4 +1,4 @@
-using ArgParse, CairoMakie, Clustering, CSV, DataFrames, Distributions, JLD2, StatsBase
+using ArgParse, CairoMakie, Clustering, CSV, DataFrames, Distributions, JLD2, Logging, Printf, StatsBase
 include("src/boundary_conditions.jl")
 include("src/orderparameters.jl")
 include("src/plot_animation.jl")
@@ -55,10 +55,13 @@ fpk_pos              = Float64[]
 oc                   = Float64[]
 
 # ── Main loop over simulation directories ─────────────────────────────────────
-for sim_dir in readdir(path, join = true)
-    isdir(sim_dir) || continue
+sim_dirs_all = filter(readdir(path, join = true)) do sd
+    isdir(sd) && isfile(joinpath(sd, "settings.jl"))
+end
+n_sims = length(sim_dirs_all)
+
+for (i_sim, sim_dir) in enumerate(sim_dirs_all)
     settings_file = joinpath(sim_dir, "settings.jl")
-    isfile(settings_file) || continue
 
     # Load simulation parameters from settings file
     L         = parse(Float64, read_setting(settings_file, "L"))
@@ -69,11 +72,15 @@ for sim_dir in readdir(path, join = true)
     v         = parse(Float64, read_setting(settings_file, "v"))
     push!(oc, offcenter)
 
+    @info @sprintf("[%d/%d] %s  |  oc=%.6f  v=%.6f  Np=%d  L=%.4f",
+        i_sim, n_sims, basename(sim_dir), offcenter, v, Np, L)
+
     # Collect valid run directories upfront to know count for pre-allocation
     run_dirs = filter(readdir(sim_dir, join = true)) do r
         isdir(r) && isfile(joinpath(r, "simulation_$(basename(r)).txt"))
     end
-    n_runs = length(run_dirs)
+    n_runs     = length(run_dirs)
+    runs_done  = Threads.Atomic{Int}(0)
 
     # Pre-allocated arrays allow thread-safe indexed writes (no push!)
     df_list        = Vector{DataFrame}(undef, n_runs)
@@ -123,6 +130,9 @@ for sim_dir in readdir(path, join = true)
         df_meanor_list[i] = df_meanor
         df_t_list[i]      = df_t
         df_nclust_list[i] = df_nclust
+
+        done = Threads.atomic_add!(runs_done, 1) + 1
+        @info @sprintf("  run [%d/%d] %s", done, n_runs, run_name)
     end
 
     # Snapshot of the last timestep of the first run
@@ -150,15 +160,13 @@ for sim_dir in readdir(path, join = true)
     # ── Transient time: first time polarization exceeds 95% of its maximum ────
     maxlocpol    = maximum(df_meanor.mean_polar)
     t_maxlocpol  = df_meanor.Time[findfirst(x -> x > 0.95*maxlocpol, df_meanor.mean_polar)] * δt
-    println("local polar $maxlocpol")
-    println("at time $t_maxlocpol")
+    @info @sprintf("  max local  polarization: %.6f  (transient: %.6f s)", maxlocpol, t_maxlocpol)
     push!(maxpolloc, maxlocpol)
     push!(maxpolloc_time, t_maxlocpol)
 
     maxpol   = maximum(df_t.mean_polar)
     t_maxpol = df_t.Time[findfirst(x -> x > 0.95*maxpol, df_t.mean_polar)] * δt
-    println("maximum polarization $maxpol")
-    println("at time $t_maxpol")
+    @info @sprintf("  max global polarization: %.6f  (transient: %.6f s)", maxpol, t_maxpol)
     push!(maximum_polarization, maxpol)
     push!(maxpoltime, t_maxpol)
 
@@ -221,11 +229,11 @@ for sim_dir in readdir(path, join = true)
 
     firstpeak     = maximum(rdf.RadialDistributionFunction[end])
     firstpeak_pos = rs[argmax(rdf.RadialDistributionFunction[end])]
-    println("first peak $firstpeak")
-    println("fp position $firstpeak_pos")
+    @info @sprintf("  RDF first peak: %.6f  at %.6f μm", firstpeak, firstpeak_pos)
     push!(firstpeak_height, firstpeak)
     push!(fpk_pos, firstpeak_pos)
     CairoMakie.save(joinpath(path, "imgs", "rdf_$(basename(sim_dir)).png"), p4)
+    @info "─"^60
 end
 
 # ── Summary: transient time vs offcenter across all simulations ────────────────
