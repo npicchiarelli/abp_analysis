@@ -70,11 +70,16 @@ function periodic_clustering!(cluster_df, L, mindist_cluster)
     df_clx = transform(groupby(df_sx, :Time), [:xpos, :ypos] => ((x,y) -> assignments(dbscan([x y]', mindist_cluster, min_cluster_size = 2))) => :dbscan)
     df_cly = transform(groupby(df_sy, :Time), [:xpos, :ypos] => ((x,y) -> assignments(dbscan([x y]', mindist_cluster, min_cluster_size = 2))) => :dbscan)
 
+    # Group once and look timesteps up by key: filtering the full frame with
+    # `Time .== t` inside the loop is O(Nt²·Np) and does not finish for long runs
+    gdf_clx, gdf_cly = groupby(df_clx, :Time), groupby(df_cly, :Time)
+
     Threads.@threads for tocheck in groupby(cluster_df, :Time)
         # tocheck.Time[1]%1000 == 0 && println(tocheck.Time[1])
         partcount = countmap(tocheck.dbscan)
+        tkey = (Time = tocheck.Time[1],)
 
-        for df_cls in [df_clx[df_clx.Time .== tocheck.Time[1],:], df_cly[df_cly.Time .== tocheck.Time[1],:]]
+        for df_cls in [gdf_clx[tkey], gdf_cly[tkey]]
             df_ors = combine(groupby(df_cls, [:Time, :dbscan]), :orientation => mean_polarization => :polar, nrow => :partcount)
             for row in eachrow(tocheck)
                 pnum = row.N

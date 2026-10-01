@@ -98,6 +98,10 @@ for (i_sim, sim_dir) in enumerate(sim_dirs_all)
 
     # ── Inner loop over independent runs (threaded) ───────────────────────────
     Threads.@threads for i in eachindex(run_dirs)
+        # df_meanor and df_t are also assigned after this loop, so without
+        # `local` the closure would share them across threads and runs would
+        # overwrite each other's results before they are stored
+        local df, df_cl, df_nclust, df_or, df_meanor, df_t
         run_dir   = run_dirs[i]
         run_name  = basename(run_dir)
         data_file = joinpath(run_dir, "simulation_$(run_name).txt")
@@ -224,12 +228,9 @@ for (i_sim, sim_dir) in enumerate(sim_dirs_all)
     CairoMakie.save(joinpath(path, "imgs", "cluster_$(basename(sim_dir)).png"), p3)
 
     # ── Plot: radial distribution function at the last timestep ───────────────
-    rdf = combine(
-        groupby(df_list[1], :Time),
-        [:xpos, :ypos] =>
-            ((x,y) -> (radialdistributionfunction(copy(x), copy(y), R, L, nbins),)) =>
-            :RadialDistributionFunction)
-    transform!(rdf, :RadialDistributionFunction => ByRow(x -> x[1]) => :RadialDistributionFunction)
+    # Only the last timestep is used, so only that one is computed
+    df_last  = df_list[1][df_list[1].Time .== maximum(df_list[1].Time), :]
+    rdf_last = radialdistributionfunction(copy(df_last.xpos), copy(df_last.ypos), R, L, nbins)
     rs, bins = radialbinssquare(L, nbins)
 
     p4 = Figure(fontsize = 20)
@@ -237,10 +238,10 @@ for (i_sim, sim_dir) in enumerate(sim_dirs_all)
         title = plot_title,
         xlabel = "Distance [μm]", ylabel = "Radial Distribution Function",
         xgridvisible = false, ygridvisible = false)
-    lines!(ax, rs, rdf.RadialDistributionFunction[end], linewidth = 2.)
+    lines!(ax, rs, rdf_last, linewidth = 2.)
 
-    firstpeak     = maximum(rdf.RadialDistributionFunction[end])
-    firstpeak_pos = rs[argmax(rdf.RadialDistributionFunction[end])]
+    firstpeak     = maximum(rdf_last)
+    firstpeak_pos = rs[argmax(rdf_last)]
     @info @sprintf("  RDF first peak: %.6f  at %.6f μm", firstpeak, firstpeak_pos)
     push!(firstpeak_height, firstpeak)
     push!(fpk_pos, firstpeak_pos)
